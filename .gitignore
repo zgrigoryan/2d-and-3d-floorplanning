@@ -6,6 +6,7 @@ cmake-build-*/
 # Generated experiment outputs
 out/
 out_*/
+Highs.log
 
 # CMake generated files
 CMakeFiles/
@@ -31,4 +32,3 @@ Makefile
 .idea/
 *.swp
 *.swo
-

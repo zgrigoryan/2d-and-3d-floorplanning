@@ -25,6 +25,7 @@ struct RunMetadata {
 };
 
 FloorplanProblem readProblemJson(const std::string& path);
+FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::string& netsPath);
 void writePlacementCsv(const std::string& path, const FloorplanSolution& solution);
 void writeSummaryJson(const std::string& path, const FloorplanSolution& solution, const SequencePair& sp, double runtimeSeconds, const RunMetadata& metadata);
 void printSolution(const FloorplanSolution& solution, const SequencePair& sp, double runtimeSeconds);

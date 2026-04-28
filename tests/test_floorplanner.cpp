@@ -1,4 +1,5 @@
 #include "floorplanner/Annealer.h"
+#include "floorplanner/IO.h"
 #include "floorplanner/LPFloorplanner.h"
 #include "floorplanner/LPSolver.h"
 #include "floorplanner/Placement.h"
@@ -6,6 +7,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -102,6 +104,23 @@ void testMutationValidity() {
     }
 }
 
+void testMcncParser() {
+    const std::string root = FP_SOURCE_DIR;
+    auto p = fp::readMcncBenchmark(root + "/mcnc_hard/apte.block", root + "/mcnc_hard/apte.nets");
+    require(p.blocks.size() == 9, "apte block count");
+    require(p.nets.size() == 96, "apte net count");
+    require(p.hasFixedOutline, "apte fixed outline");
+    require(p.fixedOutlineWidth > 0.0 && p.fixedOutlineHeight > 0.0, "apte outline dimensions");
+    bool hasPadNet = false;
+    for (const auto& net : p.nets) {
+        if (!net.pads.empty()) {
+            hasPadNet = true;
+            break;
+        }
+    }
+    require(hasPadNet, "apte pad parsing");
+}
+
 } // namespace
 
 int main() {
@@ -111,6 +130,7 @@ int main() {
         testCompactPlacement();
         testLPModelCreation();
         testMutationValidity();
+        testMcncParser();
         std::cout << "all tests passed\n";
         return 0;
     } catch (const std::exception& e) {

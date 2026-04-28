@@ -62,6 +62,15 @@ Recommended commands:
 ./build/floorplanner --input examples/small.json --mode SA-CT-LP --solver highs --iterations 1000 --output out/sa_ct_lp
 ```
 
+MCNC benchmark commands:
+
+```bash
+./build/floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-LP --solver highs --iterations 1000 --output out/apte
+./build/floorplanner --blocks mcnc_hard/apte.block --nets mcnc_hard/apte.nets --mode SA-LP --solver highs --iterations 1000 --output out/apte
+```
+
+The MCNC reader supports the bundled hard-block benchmarks in `mcnc_hard/` and reads terminal coordinates as fixed I/O pads for HPWL and LP net bounding boxes. The `Outline:` line is treated as a true fixed outline.
+
 Modes:
 
 - `CT`: deterministic construction for the identity sequence-pair.
@@ -93,6 +102,21 @@ Use `--export-lp` or `--export-mps` to write the LP model for the selected seque
 ```
 
 For simulated annealing modes, export writes only the final best sequence-pair model, not every intermediate candidate. The exported model is intended for comparison with HiGHS command-line tools, MOSEK, and CPLEX.
+
+Convenience scripts:
+
+```bash
+sh run-highs.sh
+sh run-mosek.sh
+```
+
+By default these run the `apte` MCNC benchmark with `SA-LP`, export `model.mps`/`model.lp`, and verify the exported MPS with the external solver. Override defaults with environment variables:
+
+```bash
+BENCHMARK=ami33 ITERATIONS=2000 sh run-highs.sh
+BENCHMARK=ami33 ITERATIONS=2000 sh run-mosek.sh
+INPUT=examples/small.json MODE=LP OUTPUT=out/small_highs sh run-highs.sh
+```
 
 Outputs:
 

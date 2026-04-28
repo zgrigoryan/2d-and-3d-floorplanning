@@ -13,6 +13,10 @@ namespace {
 
 struct Args {
     std::string input;
+    std::string mcncName;
+    std::string mcncDir = "mcnc_hard";
+    std::string blocksPath;
+    std::string netsPath;
     std::string output = "out";
     std::string mode = "SA-LP";
     std::string solver = "highs";
@@ -27,7 +31,10 @@ struct Args {
 };
 
 void usage() {
-    std::cerr << "Usage: floorplanner --input examples/small.json --mode SA-LP --solver highs --iterations 10000 --output out/ [--export-lp out/model.lp] [--export-mps out/model.mps]\n";
+    std::cerr << "Usage:\n";
+    std::cerr << "  floorplanner --input examples/small.json --mode SA-LP --solver highs --iterations 10000 --output out/\n";
+    std::cerr << "  floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-CT-LP --solver highs --iterations 10000 --output out/apte\n";
+    std::cerr << "  floorplanner --blocks mcnc_hard/apte.block --nets mcnc_hard/apte.nets --mode SA-CT-LP --solver highs --output out/apte\n";
 }
 
 Args parseArgs(int argc, char** argv) {
@@ -39,6 +46,10 @@ Args parseArgs(int argc, char** argv) {
             return argv[++i];
         };
         if (key == "--input") a.input = need(key);
+        else if (key == "--mcnc") a.mcncName = need(key);
+        else if (key == "--mcnc-dir") a.mcncDir = need(key);
+        else if (key == "--blocks") a.blocksPath = need(key);
+        else if (key == "--nets") a.netsPath = need(key);
         else if (key == "--output") a.output = need(key);
         else if (key == "--mode") a.mode = need(key);
         else if (key == "--solver") a.solver = need(key);
@@ -57,7 +68,11 @@ Args parseArgs(int argc, char** argv) {
             throw std::runtime_error("unknown argument: " + key);
         }
     }
-    if (a.input.empty()) throw std::runtime_error("--input is required");
+    const int inputModes = (a.input.empty() ? 0 : 1) + (a.mcncName.empty() ? 0 : 1) + ((!a.blocksPath.empty() || !a.netsPath.empty()) ? 1 : 0);
+    if (inputModes != 1) throw std::runtime_error("provide exactly one input source: --input, --mcnc, or --blocks/--nets");
+    if ((!a.blocksPath.empty() || !a.netsPath.empty()) && (a.blocksPath.empty() || a.netsPath.empty())) {
+        throw std::runtime_error("--blocks and --nets must be provided together");
+    }
     return a;
 }
 
@@ -66,7 +81,15 @@ Args parseArgs(int argc, char** argv) {
 int main(int argc, char** argv) {
     try {
         const Args args = parseArgs(argc, argv);
-        auto problem = fp::readProblemJson(args.input);
+        fp::FloorplanProblem problem;
+        if (!args.input.empty()) {
+            problem = fp::readProblemJson(args.input);
+        } else if (!args.mcncName.empty()) {
+            const auto base = std::filesystem::path(args.mcncDir) / args.mcncName;
+            problem = fp::readMcncBenchmark(base.string() + ".block", base.string() + ".nets");
+        } else {
+            problem = fp::readMcncBenchmark(args.blocksPath, args.netsPath);
+        }
         auto solver = fp::createSolver(args.solver);
         const fp::EvaluationMode mode = fp::parseMode(args.mode);
         const bool needsLpSolver = mode == fp::EvaluationMode::LP ||
@@ -105,7 +128,9 @@ int main(int argc, char** argv) {
         if (!args.exportLp.empty() || !args.exportMps.empty()) {
             // Export the LP corresponding to the final selected sequence-pair.
             // For SA modes this avoids writing thousands of intermediate LPs.
-            const auto build = fp::buildInitialLPModelForExport(problem, result.sequencePair);
+            const auto build = solver->available()
+                                   ? fp::buildCorrectedLPModelForExport(problem, result.sequencePair, *solver)
+                                   : fp::buildInitialLPModelForExport(problem, result.sequencePair);
             if (!args.exportLp.empty()) {
                 createParent(args.exportLp);
                 fp::writeLPModel(args.exportLp, build.model);

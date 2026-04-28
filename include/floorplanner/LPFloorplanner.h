@@ -11,7 +11,7 @@
 namespace fp {
 
 struct LPOptions {
-    int maxAreaCorrectionIterations = 8;
+    int maxAreaCorrectionIterations = 30;
     double areaTolerance = 1e-6;
     bool verboseAreaCorrection = false;
     bool fixHardOrientationsUsingConstruction = true;
@@ -38,10 +38,12 @@ struct LPBuildResult {
 };
 
 LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& sp, const std::vector<double>& alpha);
+LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& sp, const std::vector<std::vector<double>>& alphaCuts);
 FloorplanProblem prepareProblemForLP(const FloorplanProblem& problem, const SequencePair& sp, const LPOptions& options = {});
 FloorplanSolution optimizeByLP(const FloorplanProblem& problem, const SequencePair& sp, LPSolver& solver, const LPOptions& options = {});
 void writeLPModel(const std::string& path, const LPModel& model);
 void writeMPSModel(const std::string& path, const LPModel& model);
 LPBuildResult buildInitialLPModelForExport(const FloorplanProblem& problem, const SequencePair& sp, const LPOptions& options = {});
+LPBuildResult buildCorrectedLPModelForExport(const FloorplanProblem& problem, const SequencePair& sp, LPSolver& solver, const LPOptions& options = {});
 
 } // namespace fp

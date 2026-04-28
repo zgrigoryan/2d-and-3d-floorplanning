@@ -70,6 +70,14 @@ void addEq(LPModel& m, const std::string& name, std::initializer_list<std::pair<
 } // namespace
 
 LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& sp, const std::vector<double>& alpha) {
+    std::vector<std::vector<double>> alphaCuts(problem.blocks.size());
+    for (size_t i = 0; i < problem.blocks.size(); ++i) {
+        if (i < alpha.size()) alphaCuts[i].push_back(alpha[i]);
+    }
+    return buildLPModel(problem, sp, alphaCuts);
+}
+
+LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& sp, const std::vector<std::vector<double>>& alphaCuts) {
     LPBuildResult out;
     const int n = static_cast<int>(problem.blocks.size());
     const int nets = static_cast<int>(problem.nets.size());
@@ -150,8 +158,16 @@ LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& 
         if (b.type == BlockType::SOFT) {
             addGe(out.model, "aspect_min_" + b.name, {{out.vars.h[i], 1.0}, {out.vars.w[i], -b.minAspectRatio}}, 0.0);
             addLe(out.model, "aspect_max_" + b.name, {{out.vars.h[i], 1.0}, {out.vars.w[i], -b.maxAspectRatio}}, 0.0);
-            const double a = alpha.size() > static_cast<size_t>(i) ? alpha[i] : 1.0;
-            addGe(out.model, "area_surrogate_" + b.name, {{out.vars.w[i], 1.0}, {out.vars.h[i], a}}, softAreaLowerBound(b, a));
+            const auto& cuts = alphaCuts.size() > static_cast<size_t>(i) ? alphaCuts[i] : std::vector<double>{};
+            if (cuts.empty()) {
+                addGe(out.model, "area_surrogate_" + b.name, {{out.vars.w[i], 1.0}, {out.vars.h[i], 1.0}}, softAreaLowerBound(b, 1.0));
+            } else {
+                for (size_t k = 0; k < cuts.size(); ++k) {
+                    const double a = clampAlpha(cuts[k]);
+                    addGe(out.model, "area_surrogate_" + b.name + "_" + std::to_string(k),
+                          {{out.vars.w[i], 1.0}, {out.vars.h[i], a}}, softAreaLowerBound(b, a));
+                }
+            }
         }
     }
 
@@ -227,17 +243,17 @@ FloorplanSolution optimizeByLP(const FloorplanProblem& problem, const SequencePa
     }
     const FloorplanProblem lpProblem = prepareProblemForLP(problem, sp, options);
     const int n = static_cast<int>(lpProblem.blocks.size());
-    std::vector<double> alpha(n, 1.0);
+    std::vector<std::vector<double>> alphaCuts(n);
     for (int i = 0; i < n; ++i) {
         if (lpProblem.blocks[i].type == BlockType::SOFT) {
             const double r = std::sqrt(lpProblem.blocks[i].minAspectRatio * lpProblem.blocks[i].maxAspectRatio);
-            alpha[i] = clampAlpha(1.0 / std::max(1e-12, r));
+            alphaCuts[i].push_back(clampAlpha(1.0 / std::max(1e-12, r)));
         }
     }
 
     FloorplanSolution last;
     for (int iter = 0; iter < std::max(1, options.maxAreaCorrectionIterations); ++iter) {
-        const auto build = buildLPModel(lpProblem, sp, alpha);
+        const auto build = buildLPModel(lpProblem, sp, alphaCuts);
         const auto lp = solver.solve(build.model);
         if (!lp.feasible) {
             last.status = lp.status;
@@ -260,11 +276,16 @@ FloorplanSolution optimizeByLP(const FloorplanProblem& problem, const SequencePa
                               << " height=" << placed[i].height
                               << " actual_area=" << actualArea
                               << " required_area=" << placed[i].area
-                              << " alpha=" << alpha[i] << "\n";
+                              << " alpha=" << alphaCuts[i].back() << "\n";
                 }
-                if (actualArea + options.areaTolerance < placed[i].area) {
+                const double effectiveAreaTolerance = options.areaTolerance * std::max(1.0, placed[i].area);
+                if (actualArea + effectiveAreaTolerance < placed[i].area) {
                     areaOk = false;
-                    alpha[i] = clampAlpha(placed[i].width / std::max(1e-9, placed[i].height));
+                    const double nextAlpha = clampAlpha(placed[i].width / std::max(1e-9, placed[i].height));
+                    const auto duplicate = std::any_of(alphaCuts[i].begin(), alphaCuts[i].end(), [&](double oldAlpha) {
+                        return std::abs(oldAlpha - nextAlpha) <= 1e-8 * std::max(1.0, std::abs(oldAlpha));
+                    });
+                    if (!duplicate) alphaCuts[i].push_back(nextAlpha);
                 }
             } else {
                 placed[i].width = placed[i].width > 0.0 ? placed[i].width : placed[i].fixedWidth;
@@ -293,6 +314,43 @@ LPBuildResult buildInitialLPModelForExport(const FloorplanProblem& problem, cons
         }
     }
     return buildLPModel(lpProblem, sp, alpha);
+}
+
+LPBuildResult buildCorrectedLPModelForExport(const FloorplanProblem& problem, const SequencePair& sp, LPSolver& solver, const LPOptions& options) {
+    const FloorplanProblem lpProblem = prepareProblemForLP(problem, sp, options);
+    std::vector<std::vector<double>> alphaCuts(lpProblem.blocks.size());
+    for (size_t i = 0; i < lpProblem.blocks.size(); ++i) {
+        if (lpProblem.blocks[i].type == BlockType::SOFT) {
+            const double r = std::sqrt(lpProblem.blocks[i].minAspectRatio * lpProblem.blocks[i].maxAspectRatio);
+            alphaCuts[i].push_back(clampAlpha(1.0 / std::max(1e-12, r)));
+        }
+    }
+
+    LPBuildResult lastBuild;
+    for (int iter = 0; iter < std::max(1, options.maxAreaCorrectionIterations); ++iter) {
+        lastBuild = buildLPModel(lpProblem, sp, alphaCuts);
+        const auto lp = solver.solve(lastBuild.model);
+        if (!lp.feasible) return lastBuild;
+
+        bool areaOk = true;
+        for (size_t i = 0; i < lpProblem.blocks.size(); ++i) {
+            if (lpProblem.blocks[i].type != BlockType::SOFT) continue;
+            const double width = lp.values[lastBuild.vars.w[i]];
+            const double height = lp.values[lastBuild.vars.h[i]];
+            const double actualArea = width * height;
+            const double effectiveAreaTolerance = options.areaTolerance * std::max(1.0, lpProblem.blocks[i].area);
+            if (actualArea + effectiveAreaTolerance < lpProblem.blocks[i].area) {
+                areaOk = false;
+                const double nextAlpha = clampAlpha(width / std::max(1e-9, height));
+                const auto duplicate = std::any_of(alphaCuts[i].begin(), alphaCuts[i].end(), [&](double oldAlpha) {
+                    return std::abs(oldAlpha - nextAlpha) <= 1e-8 * std::max(1.0, std::abs(oldAlpha));
+                });
+                if (!duplicate) alphaCuts[i].push_back(nextAlpha);
+            }
+        }
+        if (areaOk) return lastBuild;
+    }
+    return lastBuild;
 }
 
 void writeLPModel(const std::string& path, const LPModel& model) {

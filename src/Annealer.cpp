@@ -95,7 +95,7 @@ AnnealerResult runAnnealing(const FloorplanProblem& problem, EvaluationMode mode
 
     if (mode == EvaluationMode::SA_CT_LP && solver && solver->available()) {
         FloorplanSolution refined = optimizeByLP(problem, best, *solver);
-        if (annealingObjective(refined) <= annealingObjective(bestSol)) bestSol = refined;
+        if (refined.feasible) bestSol = refined;
     }
     return {bestSol, best};
 }

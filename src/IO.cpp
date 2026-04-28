@@ -8,8 +8,10 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 #include <variant>
 
 namespace fp {
@@ -142,6 +144,18 @@ double numberOr(const Json::object& obj, const std::string& key, double fallback
     return v ? v->asNumber() : fallback;
 }
 
+std::string trim(const std::string& text) {
+    size_t begin = 0;
+    while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin]))) ++begin;
+    size_t end = text.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1]))) --end;
+    return text.substr(begin, end - begin);
+}
+
+bool startsWith(const std::string& text, const std::string& prefix) {
+    return text.rfind(prefix, 0) == 0;
+}
+
 std::string escape(const std::string& s) {
     std::string out;
     for (char c : s) {
@@ -215,6 +229,108 @@ FloorplanProblem readProblemJson(const std::string& path) {
             }
             p.nets.push_back(net);
         }
+    }
+    p.rebuildIndex();
+    return p;
+}
+
+FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::string& netsPath) {
+    FloorplanProblem p;
+    std::unordered_map<std::string, PadLocation> padsByName;
+
+    std::ifstream blockIn(blockPath);
+    if (!blockIn) throw std::runtime_error("cannot open MCNC block file: " + blockPath);
+
+    std::string line;
+    int expectedBlocks = -1;
+    int expectedTerminals = -1;
+    while (std::getline(blockIn, line)) {
+        line = trim(line);
+        if (line.empty()) continue;
+        std::istringstream iss(line);
+        std::string first;
+        iss >> first;
+        if (first == "Outline:") {
+            p.hasFixedOutline = true;
+            iss >> p.fixedOutlineWidth >> p.fixedOutlineHeight;
+            p.chipAspectLower = p.fixedOutlineHeight / std::max(1e-12, p.fixedOutlineWidth);
+            p.chipAspectUpper = p.chipAspectLower;
+        } else if (first == "NumBlocks:") {
+            iss >> expectedBlocks;
+        } else if (first == "NumTerminals:") {
+            iss >> expectedTerminals;
+        } else {
+            std::string second;
+            iss >> second;
+            if (second == "terminal") {
+                PadLocation pad;
+                iss >> pad.x >> pad.y;
+                padsByName[first] = pad;
+            } else {
+                Block b;
+                b.name = first;
+                b.type = BlockType::HARD;
+                b.fixedWidth = std::stod(second);
+                iss >> b.fixedHeight;
+                b.width = b.fixedWidth;
+                b.height = b.fixedHeight;
+                b.area = b.width * b.height;
+                p.blocks.push_back(b);
+            }
+        }
+    }
+    p.rebuildIndex();
+    if (expectedBlocks >= 0 && expectedBlocks != static_cast<int>(p.blocks.size())) {
+        throw std::runtime_error("MCNC block count mismatch in " + blockPath);
+    }
+    if (expectedTerminals >= 0 && expectedTerminals != static_cast<int>(padsByName.size())) {
+        throw std::runtime_error("MCNC terminal count mismatch in " + blockPath);
+    }
+
+    std::ifstream netsIn(netsPath);
+    if (!netsIn) throw std::runtime_error("cannot open MCNC nets file: " + netsPath);
+
+    int expectedNets = -1;
+    int netId = 0;
+    while (std::getline(netsIn, line)) {
+        line = trim(line);
+        if (line.empty()) continue;
+        if (startsWith(line, "NumNets:")) {
+            std::istringstream iss(line);
+            std::string label;
+            iss >> label >> expectedNets;
+            continue;
+        }
+        if (!startsWith(line, "NetDegree:")) {
+            throw std::runtime_error("expected NetDegree in MCNC nets file near: " + line);
+        }
+        std::istringstream degreeStream(line);
+        std::string label;
+        int degree = 0;
+        degreeStream >> label >> degree;
+        Net net;
+        net.id = netId;
+        net.name = "net" + std::to_string(netId);
+        for (int k = 0; k < degree; ++k) {
+            if (!std::getline(netsIn, line)) throw std::runtime_error("unexpected EOF in MCNC nets file");
+            const std::string pinName = trim(line);
+            auto blockIt = p.blockNameToId.find(pinName);
+            if (blockIt != p.blockNameToId.end()) {
+                net.blockIds.push_back(blockIt->second);
+                continue;
+            }
+            auto padIt = padsByName.find(pinName);
+            if (padIt != padsByName.end()) {
+                net.pads.push_back(padIt->second);
+                continue;
+            }
+            throw std::runtime_error("MCNC net references unknown block/terminal: " + pinName);
+        }
+        p.nets.push_back(std::move(net));
+        ++netId;
+    }
+    if (expectedNets >= 0 && expectedNets != static_cast<int>(p.nets.size())) {
+        throw std::runtime_error("MCNC net count mismatch in " + netsPath);
     }
     p.rebuildIndex();
     return p;
