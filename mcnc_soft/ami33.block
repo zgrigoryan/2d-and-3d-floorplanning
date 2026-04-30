@@ -1,0 +1,82 @@
+# Soft-block version generated from MCNC hard-block benchmark.
+# Soft block syntax: name soft area minAspectRatio maxAspectRatio
+# Aspect ratio is height / width. Bounds include original ratio and inverse.
+# ratioPadding: 1.0
+Outline: 1326 1205
+NumBlocks: 33
+NumTerminals: 40
+
+bk1	soft	44688	0.395833333333	2.52631578947	# source 336 133
+bk10a	soft	44982	0.314814814815	3.17647058824	# source 378 119
+bk10b	soft	22540	0.869565217391	1.15	# source 161 140
+bk10c	soft	5831	0.411764705882	2.42857142857	# source 119 49
+bk11	soft	20825	0.68	1.47058823529	# source 175 119
+bk12	soft	56840	0.344827586207	2.9	# source 140 406
+bk13	soft	69580	0.281690140845	3.55	# source 140 497
+bk14a	soft	23324	0.607142857143	1.64705882353	# source 196 119
+bk14b	soft	34986	0.404761904762	2.47058823529	# source 294 119
+bk14c	soft	19159	0.739130434783	1.35294117647	# source 161 119
+bk15a	soft	31654	0.447368421053	2.23529411765	# source 119 266
+bk15b	soft	39984	0.354166666667	2.82352941176	# source 119 336
+bk16	soft	14994	0.944444444444	1.05882352941	# source 119 126
+bk17a	soft	67522	0.490566037736	2.03846153846	# source 371 182
+bk17b	soft	36946	0.896551724138	1.11538461538	# source 182 203
+bk18	soft	36946	0.896551724138	1.11538461538	# source 182 203
+bk19	soft	9996	0.705882352941	1.41666666667	# source 84 119
+bk2	soft	39102	0.452380952381	2.21052631579	# source 133 294
+bk20	soft	63700	0.52	1.92307692308	# source 182 350
+bk21	soft	44100	0.444444444444	2.25	# source 315 140
+bk3	soft	41895	0.422222222222	2.36842105263	# source 133 315
+bk4	soft	74480	0.2375	4.21052631579	# source 560 133
+bk5a	soft	18620	0.95	1.05263157895	# source 133 140
+bk5b	soft	23275	0.76	1.31578947368	# source 175 133
+bk5c	soft	30723	0.575757575758	1.73684210526	# source 133 231
+bk6	soft	41895	0.422222222222	2.36842105263	# source 133 315
+bk7	soft	17836	0.538461538462	1.85714285714	# source 182 98
+bk8a	soft	44100	1	1	# source 210 210
+bk8b	soft	47628	0.333333333333	3	# source 126 378
+bk9a	soft	21658	0.653846153846	1.52941176471	# source 182 119
+bk9b	soft	14161	1	1	# source 119 119
+bk9c	soft	42483	0.333333333333	3	# source 357 119
+bk9d	soft	9996	0.705882352941	1.41666666667	# source 119 84
+
+VSS terminal         1410	1610
+VDD terminal         1856	0
+P9 terminal          293	0
+P8 terminal          185	0
+P7 terminal          1015	0
+P6 terminal          909	0
+P5 terminal          794	0
+P4 terminal          1125	0
+P37 terminal         1040	1610
+P36 terminal         786	1610
+POW terminal         385	1610
+P35 terminal         0	532
+P34 terminal         0	378
+P33 terminal         0	216
+P32 terminal         0	686
+P31 terminal         0	1348
+P30 terminal         570	1610
+P3 terminal          1294	1610
+P29 terminal         678	1610
+P28 terminal         1633	0
+P27 terminal         370	1610
+P26 terminal         1394	0
+P25 terminal         609	0
+P24 terminal         2264	185
+P23 terminal         2264	948
+P22 terminal         2264	801
+P21 terminal         1540	1610
+P20 terminal         1810	1610
+P2 terminal          1240	0
+P19 terminal         2264	1564
+P18 terminal         2264	1502
+P17 terminal         2264	1217
+GND terminal         2264	154
+P16 terminal         0	840
+P15 terminal         0	1094
+P14 terminal         2264	378
+P13 terminal         2264	663
+P12 terminal         2264	524
+P11 terminal         501	0
+P10 terminal         401	0

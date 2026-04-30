@@ -71,6 +71,38 @@ MCNC benchmark commands:
 
 The MCNC reader supports the bundled hard-block benchmarks in `mcnc_hard/` and reads terminal coordinates as fixed I/O pads for HPWL and LP net bounding boxes. The `Outline:` line is treated as a true fixed outline.
 
+Soft-block versions can be generated from the hard MCNC files:
+
+```bash
+sh run-mcnc-soft.sh
+```
+
+This writes MCNC-style `.block/.nets` files under `mcnc_soft/`. Each hard block is converted to a soft block with the same area. The generated soft block line format is:
+
+```text
+name soft area minAspectRatio maxAspectRatio
+```
+
+The default aspect-ratio bounds use the original ratio and its inverse:
+
+```text
+r = original_height / original_width
+minAspectRatio = min(r, 1/r)
+maxAspectRatio = max(r, 1/r)
+```
+
+Use `RATIO_PADDING` to expand these bounds:
+
+```bash
+RATIO_PADDING=1.2 sh run-mcnc-soft.sh
+```
+
+Run a soft benchmark with the regular JSON input path:
+
+```bash
+./build/floorplanner --mcnc apte --mcnc-dir mcnc_soft --mode SA-CT-LP --solver highs --iterations 1000 --output out/apte_soft
+```
+
 Modes:
 
 - `CT`: deterministic construction for the identity sequence-pair.
@@ -133,6 +165,18 @@ out/mcnc_SA-CT-LP/<benchmark>_mosek/
 ```
 
 Each successful result directory contains `summary.json`, `placements.csv`, `model.mps`, `model.lp`, solver solution files, and `floorplan.png`.
+
+Analyze previous runs:
+
+```bash
+sh run-analyze.sh
+```
+
+This scans `out/` and writes aggregate tables and plots under:
+
+```text
+results/comparisons/
+```
 
 Outputs:
 

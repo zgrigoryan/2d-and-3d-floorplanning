@@ -247,6 +247,7 @@ FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::stri
     while (std::getline(blockIn, line)) {
         line = trim(line);
         if (line.empty()) continue;
+        if (line[0] == '#') continue;
         std::istringstream iss(line);
         std::string first;
         iss >> first;
@@ -269,12 +270,20 @@ FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::stri
             } else {
                 Block b;
                 b.name = first;
-                b.type = BlockType::HARD;
-                b.fixedWidth = std::stod(second);
-                iss >> b.fixedHeight;
-                b.width = b.fixedWidth;
-                b.height = b.fixedHeight;
-                b.area = b.width * b.height;
+                if (second == "soft" || second == "SOFT") {
+                    b.type = BlockType::SOFT;
+                    iss >> b.area >> b.minAspectRatio >> b.maxAspectRatio;
+                    const double r = std::sqrt(b.minAspectRatio * b.maxAspectRatio);
+                    b.width = std::sqrt(b.area / std::max(1e-12, r));
+                    b.height = std::sqrt(b.area * r);
+                } else {
+                    b.type = BlockType::HARD;
+                    b.fixedWidth = std::stod(second);
+                    iss >> b.fixedHeight;
+                    b.width = b.fixedWidth;
+                    b.height = b.fixedHeight;
+                    b.area = b.width * b.height;
+                }
                 p.blocks.push_back(b);
             }
         }
@@ -295,6 +304,7 @@ FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::stri
     while (std::getline(netsIn, line)) {
         line = trim(line);
         if (line.empty()) continue;
+        if (line[0] == '#') continue;
         if (startsWith(line, "NumNets:")) {
             std::istringstream iss(line);
             std::string label;

@@ -1,0 +1,21 @@
+# Soft-block version generated from MCNC hard-block benchmark.
+# Soft block syntax: name soft area minAspectRatio maxAspectRatio
+# Aspect ratio is height / width. Bounds include original ratio and inverse.
+# ratioPadding: 1.0
+Outline: 6937 5379
+NumBlocks: 10
+NumTerminals: 2
+
+BLKB	soft	797720	0.475675675676	2.10227272727	# source 1295 616
+BLKD	soft	634550	0.378378378378	2.64285714286	# source 1295 490
+BLKLL	soft	3281530	0.511049723757	1.95675675676	# source 1295 2534
+BLKLR	soft	3326855	0.50408719346	1.98378378378	# source 1295 2569
+BLKP	soft	635040	0.9	1.11111111111	# source 756 840
+BLKRC	soft	2253118	0.599277978339	1.6686746988	# source 1162 1939
+BLKRS	soft	2012136	0.737288135593	1.35632183908	# source 1218 1652
+BLKT	soft	1160712	0.670212765957	1.49206349206	# source 882 1316
+BLKUL	soft	2737630	0.612582781457	1.63243243243	# source 1295 2114
+BLKUR	soft	2511005	0.667870036101	1.4972972973	# source 1295 1939
+
+VSS terminal 3786	0
+VDD terminal 3786	8336
