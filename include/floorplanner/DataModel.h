@@ -9,6 +9,7 @@ namespace fp {
 
 enum class BlockType { HARD, SOFT };
 enum class Orientation { HORIZONTAL, VERTICAL };
+enum class ObjectiveMode { FreeOutlineLinear, FixedOutline };
 
 struct PadLocation {
     double x = 0.0;
@@ -28,6 +29,8 @@ struct Block {
     double height = 0.0;
     double x = 0.0;
     double y = 0.0;
+    int layer = 0;
+    double power = 0.0;
     Orientation orientation = Orientation::HORIZONTAL;
 };
 
@@ -45,6 +48,14 @@ struct FloorplanProblem {
     double chipAspectUpper = 1e30;
     double areaWeight = 1.0;
     double wireWeight = 1.0;
+    double tsvWeight = 1.0;
+    double thermalWeight = 0.0;
+    double tsvKeepoutWeight = 0.0;
+    double thermalTsvBenefitWeight = 0.0;
+    ObjectiveMode objectiveMode = ObjectiveMode::FreeOutlineLinear;
+    int numLayers = 1;
+    double tsvDiameter = 1.0;
+    double tsvKeepoutRadius = 0.0;
     bool hasFixedOutline = false;
     double fixedOutlineWidth = 0.0;
     double fixedOutlineHeight = 0.0;
@@ -58,6 +69,7 @@ struct BlockPlacement {
     BlockType type = BlockType::SOFT;
     double x = 0.0;
     double y = 0.0;
+    int layer = 0;
     double width = 0.0;
     double height = 0.0;
 };
@@ -68,6 +80,9 @@ struct FloorplanSolution {
     double chipHeight = 0.0;
     double chipArea = 0.0;
     double totalWirelength = 0.0;
+    double totalTsvCount = 0.0;
+    double thermalCost = 0.0;
+    double tsvOverlapCost = 0.0;
     double objectiveValue = std::numeric_limits<double>::infinity();
     bool feasible = false;
     std::string status = "uninitialized";
@@ -75,6 +90,8 @@ struct FloorplanSolution {
 
 std::string toString(BlockType type);
 std::string toString(Orientation orientation);
+std::string toString(ObjectiveMode mode);
 BlockType blockTypeFromString(const std::string& text);
+ObjectiveMode objectiveModeFromString(const std::string& text);
 
 } // namespace fp

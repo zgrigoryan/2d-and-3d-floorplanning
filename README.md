@@ -6,6 +6,8 @@ Jae-Gon Kim and Yeong-Dae Kim, "A Linear Programming-Based Algorithm for Floorpl
 
 The code implements sequence-pair topology search, hard and soft rectangular blocks, compact longest-path placement, and a fixed-sequence-pair LP model with an isolated solver backend. HiGHS is the default LP backend, MOSEK is supported through the C++ Fusion API when enabled at build time, and CPLEX can be added later by implementing `LPSolver`.
 
+The repository also includes an experimental 3D extension for comparison with the companion `3D-Floorplanner` project. That path uses sequence triples for layer-aware topology, a Kim/Kim-style 3D construction evaluator, TSV and thermal penalties, and an LP refinement for fixed sequence-triple/layer assignments.
+
 ## Build
 
 ```bash
@@ -102,6 +104,7 @@ Recommended commands:
 ./build/floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-CT --solver none --iterations 1000 --output out/apte_sa_ct
 ./build/floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-LP --solver highs --iterations 1000 --output out/apte_sa_lp
 ./build/floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-CT-LP --solver highs --iterations 1000 --output out/apte_sa_ct_lp
+./build/floorplanner --mcnc apte --mcnc-dir mcnc_hard --mode SA-3D-CT-LP --solver highs --layers 3 --iterations 1000 --objective-mode fixed-outline --output out/apte_3d
 ```
 
 MCNC benchmark commands:
@@ -152,6 +155,11 @@ Modes:
 - `SA-CT`: simulated annealing evaluated by construction.
 - `SA-LP`: simulated annealing evaluated by LP.
 - `SA-CT-LP`: simulated annealing evaluated by construction, followed by LP refinement of the best sequence-pair.
+- `3D-CT`: construction for the identity sequence-triple.
+- `3D-LP`: LP refinement for the identity sequence-triple with fixed decoded layers.
+- `SA-3D-CT`: simulated annealing over sequence triples evaluated by 3D Kim/Kim-style construction.
+- `SA-3D-LP`: simulated annealing over sequence triples evaluated by the 3D LP.
+- `SA-3D-CT-LP`: simulated annealing evaluated by 3D construction, followed by 3D LP refinement.
 
 Solvers:
 
@@ -178,6 +186,8 @@ Use `--export-lp` or `--export-mps` to write the LP model for the selected seque
 
 For simulated annealing modes, export writes only the final best sequence-pair model, not every intermediate candidate. The exported model is intended for comparison with HiGHS command-line tools, MOSEK, and CPLEX.
 
+For 3D sequence-triple modes, exported LP/MPS files represent the fixed decoded layer assignment and optimize only the linear x/y coordinate, soft-dimension, outline, and net-bounding-box part. The reported 3D objective in `summary.json` then adds evaluator-level TSV, keepout, and thermal penalties, so the external solver's LP objective can be smaller than the final reported 3D objective.
+
 Convenience scripts:
 
 ```bash
@@ -191,6 +201,62 @@ By default these run the `apte` MCNC benchmark with `SA-CT-LP`, export `model.mp
 BENCHMARK=ami33 ITERATIONS=2000 sh run-highs.sh
 BENCHMARK=ami33 ITERATIONS=2000 sh run-mosek.sh
 INPUT=custom.json MODE=LP OUTPUT=out/custom_highs sh run-highs.sh
+```
+
+3D experiments have a separate convenience script:
+
+```bash
+cmake --build build
+
+sh run-3d.sh
+BENCHMARK=ami33 SOLVER=highs LAYERS=3 ITERATIONS=2000 sh run-3d.sh
+BENCHMARK=ami33 SOLVER=mosek LAYERS=3 ITERATIONS=2000 sh run-3d.sh
+```
+
+The default 3D mode is `SA-3D-CT-LP`: search with sequence-triple construction, then refine the best sequence triple with the LP solver. The 3D construction evaluator mirrors the 2D Kim/Kim construction method: it processes blocks in decreasing block-effect order, tries both hard-block orientations and five soft-block aspect-ratio candidates, compacts the decoded same-layer precedence constraints, and scores footprint, HPWL, TSV, keepout, and thermal terms. The fixed-outline objective is useful for MCNC because the outline is fixed and optimization can focus on wirelength plus TSV/thermal terms:
+
+```bash
+MODE=SA-3D-CT-LP \
+LAYERS=3 \
+OBJECTIVE_MODE=fixed-outline \
+TSV_WEIGHT=100 \
+THERMAL_WEIGHT=0.00001 \
+TSV_KEEPOUT_WEIGHT=10 \
+sh run-3d.sh
+```
+
+To run the 3D construction-only path without any LP solver:
+
+```bash
+MODE=SA-3D-CT SOLVER=none EXPORT_MODEL=0 sh run-3d.sh
+```
+
+Run all bundled MCNC cases in 3D with both native solver backends:
+
+```bash
+ITERATIONS=1000 LAYERS=3 sh run-all-mcnc-3d.sh
+```
+
+For larger cases such as `ami33` and `ami49`, avoid judging quality from a single seed. A controlled run with explicit temperature usually behaves better than the very hot auto-temperature calibration:
+
+```bash
+BENCHMARK=ami33 SOLVER=highs LAYERS=3 ITERATIONS=100000 EPOCH_LENGTH=250 INITIAL_TEMPERATURE=1000 COOLING_RATIO=0.95 SEED=1 sh run-3d.sh
+BENCHMARK=ami49 SOLVER=highs LAYERS=3 ITERATIONS=200000 EPOCH_LENGTH=500 INITIAL_TEMPERATURE=1000 COOLING_RATIO=0.95 SEED=1 sh run-3d.sh
+```
+
+Then repeat with several seeds and compare best/median:
+
+```bash
+SEED=1 BENCHMARK=ami49 SOLVER=highs LAYERS=3 ITERATIONS=200000 EPOCH_LENGTH=500 INITIAL_TEMPERATURE=1000 sh run-3d.sh
+SEED=2 BENCHMARK=ami49 SOLVER=highs LAYERS=3 ITERATIONS=200000 EPOCH_LENGTH=500 INITIAL_TEMPERATURE=1000 OUTPUT=out/ami49_3d_highs_seed2 sh run-3d.sh
+SEED=3 BENCHMARK=ami49 SOLVER=highs LAYERS=3 ITERATIONS=200000 EPOCH_LENGTH=500 INITIAL_TEMPERATURE=1000 OUTPUT=out/ami49_3d_highs_seed3 sh run-3d.sh
+```
+
+Outputs are written under:
+
+```text
+out/mcnc_SA-3D-CT-LP_3L/<benchmark>_highs/
+out/mcnc_SA-3D-CT-LP_3L/<benchmark>_mosek/
 ```
 
 Annealing workflow options adapted from the companion 3D floorplanner are available when you want more robust experimental runs:
@@ -223,6 +289,7 @@ out/mcnc_SA-CT-LP/<benchmark>_mosek/
 ```
 
 Each successful result directory contains `summary.json`, `placements.csv`, `model.mps`, `model.lp`, solver solution files, and `floorplan.png`.
+3D result directories additionally contain `floorplan_3d.png`, generated by `visualize_floorplan_3d.py`.
 
 Analyze previous runs:
 
@@ -239,7 +306,7 @@ results/comparisons/
 Outputs:
 
 - `placements.csv`: `block_name,x,y,width,height,type,layer`
-- `summary.json`: final metrics, chosen sequence-pair, run metadata, problem metadata
+- `summary.json`: final metrics, chosen sequence-pair or sequence-triple, run metadata, problem metadata
 - console summary with objective, chip size, wirelength, runtime, and block placements
 
 ## Notes
@@ -251,7 +318,9 @@ Outputs:
 - Hard-block orientations are fixed before LP by running the construction method for the same sequence-pair.
 - The LP applies transitive reduction to sequence-pair precedence DAGs before adding non-overlap constraints, following Kim and Kim's goal of reducing redundant LP constraints.
 - Soft-block construction candidates are log-spaced aspect ratios.
-- Exact pin orientation/flipping and 3D extensions are not implemented in this 2D baseline.
+- The 3D extension currently fixes layer assignment through the sequence triple. The 3D LP is therefore a linear refinement over x/y coordinates and soft dimensions, not a full MILP that chooses layers or TSV sites with binary variables.
+- TSV assignment is an evaluator-level approximation: each multi-layer net contributes `distinct_layers - 1` TSVs and an estimated TSV keepout point near the net center. Explicit TSV whitespace variables are planned for the later MILP version.
+- Thermal cost is a lightweight hotspot proxy, weighted by module power when provided and by area otherwise.
 
 ## Paper Fidelity
 
@@ -264,3 +333,4 @@ Intentional simplifications and engineering choices:
 - Soft construction candidates are log-spaced aspect ratios.
 - `SA-LP` uses a construction penalty only when an LP candidate is infeasible, so fixed-outline MCNC searches can keep moving.
 - MOSEK has a native Fusion backend when compiled with `FP_WITH_MOSEK=ON`; exported MPS/LP files remain useful for cross-solver checks.
+- The 3D sequence-triple extension is not part of Kim and Kim's 2003 2D paper. It is implemented as an additive research path so the 2D baseline remains available for direct paper comparison.

@@ -3,6 +3,7 @@
 #include "floorplanner/Annealer.h"
 #include "floorplanner/DataModel.h"
 #include "floorplanner/SequencePair.h"
+#include "floorplanner/SequenceTriple.h"
 
 #include <string>
 
@@ -24,6 +25,14 @@ struct RunMetadata {
     double coolingRatio = 0.0;
     int numBlocks = 0;
     int numNets = 0;
+    int numLayers = 1;
+    std::string objectiveMode;
+    double tsvWeight = 0.0;
+    double thermalWeight = 0.0;
+    double tsvKeepoutWeight = 0.0;
+    double thermalTsvBenefitWeight = 0.0;
+    double tsvDiameter = 0.0;
+    double tsvKeepoutRadius = 0.0;
     bool hasFixedOutline = false;
     double fixedOutlineWidth = 0.0;
     double fixedOutlineHeight = 0.0;
@@ -35,6 +44,8 @@ FloorplanProblem readProblemJson(const std::string& path);
 FloorplanProblem readMcncBenchmark(const std::string& blockPath, const std::string& netsPath);
 void writePlacementCsv(const std::string& path, const FloorplanSolution& solution);
 void writeSummaryJson(const std::string& path, const FloorplanSolution& solution, const SequencePair& sp, double runtimeSeconds, const RunMetadata& metadata);
+void writeSummaryJson(const std::string& path, const FloorplanSolution& solution, const SequenceTriple& st, double runtimeSeconds, const RunMetadata& metadata);
 void printSolution(const FloorplanSolution& solution, const SequencePair& sp, double runtimeSeconds);
+void printSolution(const FloorplanSolution& solution, const SequenceTriple& st, double runtimeSeconds);
 
 } // namespace fp

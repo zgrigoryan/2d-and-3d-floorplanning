@@ -70,7 +70,9 @@ double computeHPWL(const FloorplanProblem& problem, const std::vector<Block>& pl
 double computeObjective(const FloorplanProblem& problem, double chipWidth, double chipHeight, double wirelength) {
     // The LP and construction evaluator use W + H as a linear chip-size proxy,
     // matching the paper's LP-friendly objective rather than nonlinear W * H.
-    return problem.areaWeight * (chipWidth + chipHeight) + problem.wireWeight * wirelength;
+    const bool fixedOutlineObjective = problem.objectiveMode == ObjectiveMode::FixedOutline && problem.hasFixedOutline;
+    const double outlineTerm = fixedOutlineObjective ? 0.0 : problem.areaWeight * (chipWidth + chipHeight);
+    return outlineTerm + problem.wireWeight * wirelength;
 }
 
 CompactPlacementResult compactPlacement(const FloorplanProblem& problem, const SequencePair& sp, const std::vector<Block>& blocksWithDims) {
@@ -133,7 +135,7 @@ FloorplanSolution makeSolution(const FloorplanProblem& problem, const std::vecto
     sol.status = status;
     sol.placements.reserve(placedBlocks.size());
     for (const auto& b : placedBlocks) {
-        sol.placements.push_back({b.name, b.type, b.x, b.y, b.width, b.height});
+        sol.placements.push_back({b.name, b.type, b.x, b.y, b.layer, b.width, b.height});
     }
     return sol;
 }

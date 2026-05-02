@@ -127,8 +127,10 @@ LPBuildResult buildLPModel(const FloorplanProblem& problem, const SequencePair& 
     // In fixed-outline experiments W and H are constants. The W + H term is
     // still present but constant, so optimization is driven by wirelength and
     // feasibility under the outline.
-    out.vars.W = out.model.addVariable("W", problem.hasFixedOutline ? problem.fixedOutlineWidth : 0.0, problem.hasFixedOutline ? problem.fixedOutlineWidth : INF, problem.areaWeight);
-    out.vars.H = out.model.addVariable("H", problem.hasFixedOutline ? problem.fixedOutlineHeight : 0.0, problem.hasFixedOutline ? problem.fixedOutlineHeight : INF, problem.areaWeight);
+    const bool fixedOutlineObjective = problem.objectiveMode == ObjectiveMode::FixedOutline && problem.hasFixedOutline;
+    const double chipObjective = fixedOutlineObjective ? 0.0 : problem.areaWeight;
+    out.vars.W = out.model.addVariable("W", problem.hasFixedOutline ? problem.fixedOutlineWidth : 0.0, problem.hasFixedOutline ? problem.fixedOutlineWidth : INF, chipObjective);
+    out.vars.H = out.model.addVariable("H", problem.hasFixedOutline ? problem.fixedOutlineHeight : 0.0, problem.hasFixedOutline ? problem.fixedOutlineHeight : INF, chipObjective);
 
     for (int ni = 0; ni < nets; ++ni) {
         const auto suffix = "_" + problem.nets[ni].name;
@@ -331,7 +333,7 @@ FloorplanSolution optimizeByLP(const FloorplanProblem& problem, const SequencePa
         const double W = lp.values[build.vars.W];
         const double H = lp.values[build.vars.H];
         last = makeSolution(lpProblem, placed, W, H, areaOk, areaOk ? "lp_optimal" : "lp_area_correction_needed");
-        last.objectiveValue = lp.objective;
+        last.objectiveValue = computeObjective(lpProblem, W, H, last.totalWirelength);
         if (areaOk) return last;
     }
     last.feasible = false;

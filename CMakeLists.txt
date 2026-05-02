@@ -11,11 +11,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(floorplanner_lib
     src/DataModel.cpp
     src/SequencePair.cpp
+    src/SequenceTriple.cpp
     src/Placement.cpp
     src/Construction.cpp
+    src/ThreeD.cpp
     src/LPSolver.cpp
     src/LPFloorplanner.cpp
     src/Annealer.cpp
+    src/ThreeDAnnealer.cpp
     src/IO.cpp
 )
 target_include_directories(floorplanner_lib PUBLIC include)

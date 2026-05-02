@@ -3,6 +3,8 @@
 #include "floorplanner/LPFloorplanner.h"
 #include "floorplanner/LPSolver.h"
 #include "floorplanner/Placement.h"
+#include "floorplanner/SequenceTriple.h"
+#include "floorplanner/ThreeD.h"
 
 #include <cmath>
 #include <iostream>
@@ -104,6 +106,36 @@ void testMutationValidity() {
     }
 }
 
+void testSequenceTriple3D() {
+    auto p = tinyProblem();
+    p.numLayers = 2;
+    fp::SequenceTriple st({0, 1, 2}, {2, 1, 0}, {2, 1, 0});
+    require(st.validate(3), "sequence-triple validity");
+    const auto layers = st.decodeLayers(2);
+    require(layers[0] == 0, "first layer");
+    require(layers[1] >= 0 && layers[1] < 2, "second layer range");
+    auto sol = fp::constructBySequenceTriple3D(p, st, {2});
+    require(!sol.placements.empty(), "3d placements");
+    require(sol.chipWidth > 0.0 && sol.chipHeight > 0.0, "3d footprint");
+    bool usesUpperLayer = false;
+    for (const auto& b : sol.placements) usesUpperLayer = usesUpperLayer || b.layer > 0;
+    require(usesUpperLayer, "3d layer assignment");
+    std::mt19937 rng(9);
+    for (int i = 0; i < 100; ++i) {
+        st.mutate(rng);
+        require(st.validate(3), "sequence-triple mutation validity");
+    }
+
+    auto build = fp::buildThreeDLPModel(p, st, std::vector<std::vector<double>>(3, {1.0}), {2});
+    require(!build.model.variables.empty(), "3d lp variables");
+    require(!build.model.constraints.empty(), "3d lp constraints");
+    auto solver = fp::createSolver("highs");
+    if (solver->available()) {
+        auto lpSol = fp::optimizeSequenceTripleByLP(p, st, *solver, {}, {2});
+        require(lpSol.feasible, "highs solves tiny 3d LP");
+    }
+}
+
 void testMcncParser() {
     const std::string root = FP_SOURCE_DIR;
     auto p = fp::readMcncBenchmark(root + "/mcnc_hard/apte.block", root + "/mcnc_hard/apte.nets");
@@ -130,6 +162,7 @@ int main() {
         testCompactPlacement();
         testLPModelCreation();
         testMutationValidity();
+        testSequenceTriple3D();
         testMcncParser();
         std::cout << "all tests passed\n";
         return 0;

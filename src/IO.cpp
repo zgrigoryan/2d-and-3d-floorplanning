@@ -184,6 +184,16 @@ FloorplanProblem readProblemJson(const std::string& path) {
     p.chipAspectUpper = numberOr(obj, "chipAspectUpper", 1e30);
     p.areaWeight = numberOr(obj, "areaWeight", 1.0);
     p.wireWeight = numberOr(obj, "wireWeight", 1.0);
+    p.tsvWeight = numberOr(obj, "tsvWeight", 1.0);
+    p.thermalWeight = numberOr(obj, "thermalWeight", 0.0);
+    p.tsvKeepoutWeight = numberOr(obj, "tsvKeepoutWeight", 0.0);
+    p.thermalTsvBenefitWeight = numberOr(obj, "thermalTsvBenefitWeight", 0.0);
+    p.numLayers = static_cast<int>(numberOr(obj, "numLayers", 1.0));
+    p.tsvDiameter = numberOr(obj, "tsvDiameter", 1.0);
+    p.tsvKeepoutRadius = numberOr(obj, "tsvKeepoutRadius", 0.0);
+    if (const Json* mode = find(obj, "objectiveMode")) {
+        p.objectiveMode = objectiveModeFromString(mode->asString());
+    }
     if (find(obj, "fixedOutlineWidth") && find(obj, "fixedOutlineHeight")) {
         p.hasFixedOutline = true;
         p.fixedOutlineWidth = numberOr(obj, "fixedOutlineWidth", 0.0);
@@ -208,6 +218,8 @@ FloorplanProblem readProblemJson(const std::string& path) {
             b.width = std::sqrt(b.area / r);
             b.height = std::sqrt(b.area * r);
         }
+        b.layer = static_cast<int>(numberOr(bobj, "layer", 0.0));
+        b.power = numberOr(bobj, "power", 0.0);
         p.blocks.push_back(b);
     }
     p.rebuildIndex();
@@ -352,13 +364,13 @@ void writePlacementCsv(const std::string& path, const FloorplanSolution& solutio
     out << "block_name,x,y,width,height,type,layer\n";
     out << std::fixed << std::setprecision(6);
     for (const auto& b : solution.placements) {
-        out << b.name << "," << b.x << "," << b.y << "," << b.width << "," << b.height << "," << toString(b.type) << ",0\n";
+        out << b.name << "," << b.x << "," << b.y << "," << b.width << "," << b.height << "," << toString(b.type) << "," << b.layer << "\n";
     }
 }
 
-void writeSummaryJson(const std::string& path, const FloorplanSolution& s, const SequencePair& sp, double runtimeSeconds, const RunMetadata& metadata) {
-    std::ofstream out(path);
-    if (!out) throw std::runtime_error("cannot write summary: " + path);
+namespace {
+
+void writeSummaryPrefix(std::ostream& out, const FloorplanSolution& s, double runtimeSeconds, const RunMetadata& metadata) {
     out << std::fixed << std::setprecision(6);
     out << "{\n";
     out << "  \"objective\": "; writeJsonNumber(out, s.objectiveValue); out << ",\n";
@@ -366,6 +378,9 @@ void writeSummaryJson(const std::string& path, const FloorplanSolution& s, const
     out << "  \"chipHeight\": "; writeJsonNumber(out, s.chipHeight); out << ",\n";
     out << "  \"chipArea\": "; writeJsonNumber(out, s.chipArea); out << ",\n";
     out << "  \"totalWirelength\": "; writeJsonNumber(out, s.totalWirelength); out << ",\n";
+    out << "  \"totalTsvCount\": "; writeJsonNumber(out, s.totalTsvCount); out << ",\n";
+    out << "  \"thermalCost\": "; writeJsonNumber(out, s.thermalCost); out << ",\n";
+    out << "  \"tsvOverlapCost\": "; writeJsonNumber(out, s.tsvOverlapCost); out << ",\n";
     out << "  \"runtimeSeconds\": "; writeJsonNumber(out, runtimeSeconds); out << ",\n";
     out << "  \"feasible\": " << (s.feasible ? "true" : "false") << ",\n";
     out << "  \"status\": \"" << escape(s.status) << "\",\n";
@@ -384,15 +399,46 @@ void writeSummaryJson(const std::string& path, const FloorplanSolution& s, const
     out << "  \"coolingRatio\": "; writeJsonNumber(out, metadata.coolingRatio); out << ",\n";
     out << "  \"numBlocks\": " << metadata.numBlocks << ",\n";
     out << "  \"numNets\": " << metadata.numNets << ",\n";
+    out << "  \"numLayers\": " << metadata.numLayers << ",\n";
+    out << "  \"objectiveMode\": \"" << escape(metadata.objectiveMode) << "\",\n";
+    out << "  \"tsvWeight\": "; writeJsonNumber(out, metadata.tsvWeight); out << ",\n";
+    out << "  \"thermalWeight\": "; writeJsonNumber(out, metadata.thermalWeight); out << ",\n";
+    out << "  \"tsvKeepoutWeight\": "; writeJsonNumber(out, metadata.tsvKeepoutWeight); out << ",\n";
+    out << "  \"thermalTsvBenefitWeight\": "; writeJsonNumber(out, metadata.thermalTsvBenefitWeight); out << ",\n";
+    out << "  \"tsvDiameter\": "; writeJsonNumber(out, metadata.tsvDiameter); out << ",\n";
+    out << "  \"tsvKeepoutRadius\": "; writeJsonNumber(out, metadata.tsvKeepoutRadius); out << ",\n";
     out << "  \"hasFixedOutline\": " << (metadata.hasFixedOutline ? "true" : "false") << ",\n";
     out << "  \"fixedOutlineWidth\": "; writeJsonNumber(out, metadata.fixedOutlineWidth); out << ",\n";
     out << "  \"fixedOutlineHeight\": "; writeJsonNumber(out, metadata.fixedOutlineHeight); out << ",\n";
     out << "  \"chipAspectLower\": "; writeJsonNumber(out, metadata.chipAspectLower); out << ",\n";
     out << "  \"chipAspectUpper\": "; writeJsonNumber(out, metadata.chipAspectUpper); out << ",\n";
+}
+
+} // namespace
+
+void writeSummaryJson(const std::string& path, const FloorplanSolution& s, const SequencePair& sp, double runtimeSeconds, const RunMetadata& metadata) {
+    std::ofstream out(path);
+    if (!out) throw std::runtime_error("cannot write summary: " + path);
+    writeSummaryPrefix(out, s, runtimeSeconds, metadata);
     out << "  \"gammaPlus\": [";
     for (size_t i = 0; i < sp.gammaPlus.size(); ++i) out << (i ? ", " : "") << sp.gammaPlus[i];
     out << "],\n  \"gammaMinus\": [";
     for (size_t i = 0; i < sp.gammaMinus.size(); ++i) out << (i ? ", " : "") << sp.gammaMinus[i];
+    out << "]\n}\n";
+}
+
+void writeSummaryJson(const std::string& path, const FloorplanSolution& s, const SequenceTriple& st, double runtimeSeconds, const RunMetadata& metadata) {
+    std::ofstream out(path);
+    if (!out) throw std::runtime_error("cannot write summary: " + path);
+    writeSummaryPrefix(out, s, runtimeSeconds, metadata);
+    out << "  \"gamma1\": [";
+    for (size_t i = 0; i < st.gamma1.size(); ++i) out << (i ? ", " : "") << st.gamma1[i];
+    out << "],\n  \"gamma2\": [";
+    for (size_t i = 0; i < st.gamma2.size(); ++i) out << (i ? ", " : "") << st.gamma2[i];
+    out << "],\n  \"gamma3\": [";
+    for (size_t i = 0; i < st.gamma3.size(); ++i) out << (i ? ", " : "") << st.gamma3[i];
+    out << "],\n  \"rotated\": [";
+    for (size_t i = 0; i < st.rotated.size(); ++i) out << (i ? ", " : "") << (st.rotated[i] ? "true" : "false");
     out << "]\n}\n";
 }
 
@@ -403,13 +449,38 @@ void printSolution(const FloorplanSolution& s, const SequencePair& sp, double ru
     std::cout << "chip_height: " << s.chipHeight << "\n";
     std::cout << "chip_area: " << s.chipArea << "\n";
     std::cout << "wirelength: " << s.totalWirelength << "\n";
+    if (s.totalTsvCount > 0.0 || s.thermalCost > 0.0 || s.tsvOverlapCost > 0.0) {
+        std::cout << "tsv_count: " << s.totalTsvCount << "\n";
+        std::cout << "thermal_cost: " << s.thermalCost << "\n";
+        std::cout << "tsv_overlap_cost: " << s.tsvOverlapCost << "\n";
+    }
     std::cout << "runtime_seconds: " << runtimeSeconds << "\n";
     std::cout << "feasible: " << (s.feasible ? "true" : "false") << "\n";
     std::cout << "status: " << s.status << "\n";
     std::cout << "sequence_pair: " << sp.toString() << "\n";
     std::cout << "blocks:\n";
     for (const auto& b : s.placements) {
-        std::cout << "  " << b.name << " x=" << b.x << " y=" << b.y << " w=" << b.width << " h=" << b.height << " type=" << toString(b.type) << "\n";
+        std::cout << "  " << b.name << " x=" << b.x << " y=" << b.y << " z=" << b.layer << " w=" << b.width << " h=" << b.height << " type=" << toString(b.type) << "\n";
+    }
+}
+
+void printSolution(const FloorplanSolution& s, const SequenceTriple& st, double runtimeSeconds) {
+    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "objective: " << s.objectiveValue << "\n";
+    std::cout << "chip_width: " << s.chipWidth << "\n";
+    std::cout << "chip_height: " << s.chipHeight << "\n";
+    std::cout << "chip_area: " << s.chipArea << "\n";
+    std::cout << "wirelength: " << s.totalWirelength << "\n";
+    std::cout << "tsv_count: " << s.totalTsvCount << "\n";
+    std::cout << "thermal_cost: " << s.thermalCost << "\n";
+    std::cout << "tsv_overlap_cost: " << s.tsvOverlapCost << "\n";
+    std::cout << "runtime_seconds: " << runtimeSeconds << "\n";
+    std::cout << "feasible: " << (s.feasible ? "true" : "false") << "\n";
+    std::cout << "status: " << s.status << "\n";
+    std::cout << "sequence_triple: " << st.toString() << "\n";
+    std::cout << "blocks:\n";
+    for (const auto& b : s.placements) {
+        std::cout << "  " << b.name << " x=" << b.x << " y=" << b.y << " z=" << b.layer << " w=" << b.width << " h=" << b.height << " type=" << toString(b.type) << "\n";
     }
 }
 
