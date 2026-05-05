@@ -6,7 +6,11 @@ BENCHMARK="${BENCHMARK:-apte}"
 MCNC_DIR="${MCNC_DIR:-mcnc_hard}"
 MODE="${MODE:-SA-CT-LP}"
 ITERATIONS="${ITERATIONS:-1000}"
+EPOCH_LENGTH="${EPOCH_LENGTH:-100}"
 MAX_NO_IMPROVE_EPOCHS="${MAX_NO_IMPROVE_EPOCHS:-1000000}"
+INITIAL_TEMPERATURE="${INITIAL_TEMPERATURE:-100}"
+COOLING_RATIO="${COOLING_RATIO:-0.95}"
+SEED="${SEED:-1}"
 AUTO_TEMPERATURE="${AUTO_TEMPERATURE:-0}"
 AUTO_EPOCH_LENGTH="${AUTO_EPOCH_LENGTH:-0}"
 VERBOSE_SA="${VERBOSE_SA:-0}"
@@ -51,7 +55,11 @@ if [ -n "${INPUT}" ]; then
         --mode "${MODE}" \
         --solver highs \
         --iterations "${ITERATIONS}" \
+        --epoch-length "${EPOCH_LENGTH}" \
         --max-no-improve-epochs "${MAX_NO_IMPROVE_EPOCHS}" \
+        --initial-temperature "${INITIAL_TEMPERATURE}" \
+        --cooling-ratio "${COOLING_RATIO}" \
+        --seed "${SEED}" \
         ${SA_EXTRA_ARGS} \
         --output "${OUTPUT}" \
         --export-mps "${OUTPUT}/model.mps" \
@@ -63,7 +71,11 @@ else
         --mode "${MODE}" \
         --solver highs \
         --iterations "${ITERATIONS}" \
+        --epoch-length "${EPOCH_LENGTH}" \
         --max-no-improve-epochs "${MAX_NO_IMPROVE_EPOCHS}" \
+        --initial-temperature "${INITIAL_TEMPERATURE}" \
+        --cooling-ratio "${COOLING_RATIO}" \
+        --seed "${SEED}" \
         ${SA_EXTRA_ARGS} \
         --output "${OUTPUT}" \
         --export-mps "${OUTPUT}/model.mps" \

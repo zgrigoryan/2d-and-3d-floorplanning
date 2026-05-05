@@ -109,6 +109,18 @@ FloorplanProblem prepareProblemForSequenceTripleLP(const FloorplanProblem& probl
     return lpProblem;
 }
 
+FloorplanProblem assignSequenceTripleLayersPreservingDimensions(const FloorplanProblem& problem,
+                                                                const SequenceTriple& st,
+                                                                const ThreeDOptions& options) {
+    FloorplanProblem layered = problem;
+    layered.numLayers = std::max(1, options.numLayers > 0 ? options.numLayers : problem.numLayers);
+    const auto layerOf = st.decodeLayers(layered.numLayers);
+    for (int i = 0; i < static_cast<int>(layered.blocks.size()); ++i) {
+        layered.blocks[i].layer = layerOf[i];
+    }
+    return layered;
+}
+
 void addLe(LPModel& m, const std::string& name, std::initializer_list<std::pair<int, double>> terms, double rhs) {
     std::vector<int> ids;
     std::vector<double> vals;
@@ -392,9 +404,10 @@ LPBuildResult buildThreeDLPModel(const FloorplanProblem& problem,
                                  const SequenceTriple& st,
                                  const std::vector<std::vector<double>>& alphaCuts,
                                  const ThreeDOptions& options) {
-    LPOptions noConstructionOrientationFix;
-    noConstructionOrientationFix.fixHardOrientationsUsingConstruction = false;
-    const FloorplanProblem lpProblem = prepareProblemForSequenceTripleLP(problem, st, options, noConstructionOrientationFix);
+    // The caller may pass a problem whose hard-block orientations have already
+    // been fixed by the 3D Kim/Kim construction method. Preserve those
+    // dimensions here; only refresh sequence-triple layer assignments.
+    const FloorplanProblem lpProblem = assignSequenceTripleLayersPreservingDimensions(problem, st, options);
     LPBuildResult out;
     const int n = static_cast<int>(lpProblem.blocks.size());
     const int nets = static_cast<int>(lpProblem.nets.size());
